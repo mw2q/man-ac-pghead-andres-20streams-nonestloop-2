@@ -1,0 +1,54 @@
+BEGIN;
+BEGIN
+EXPLAIN (ANALYZE, BUFFERS)
+select
+	sum(l_extendedprice) / 7.0 as avg_yearly
+from
+	lineitem,
+	part
+where
+	p_partkey = l_partkey
+	and p_brand = 'Brand#33'
+	and p_container = 'JUMBO PACK'
+	and l_quantity < (
+		select
+			0.2 * avg(l_quantity)
+		from
+			lineitem
+		where
+			l_partkey = p_partkey
+	);
+                                                                                            QUERY PLAN                                                                                             
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=9560332.94..9560332.95 rows=1 width=4) (actual time=21348.480..21348.480 rows=1 loops=1)
+   Buffers: shared hit=3142685 read=42671
+   ->  Hash Join  (cost=6576.36..9560283.53 rows=19765 width=4) (actual time=24.077..21347.009 rows=5212 loops=1)
+         Hash Cond: (lineitem.l_partkey = part.p_partkey)
+         Join Filter: (lineitem.l_quantity < (SubPlan 1))
+         Rows Removed by Join Filter: 54770
+         Buffers: shared hit=3142685 read=42671
+         ->  Seq Scan on lineitem  (cost=0.00..1666931.97 rows=60045697 width=12) (actual time=0.007..9719.471 rows=60045669 loops=1)
+               Buffers: shared hit=1031092 read=35383
+         ->  Hash  (cost=6551.67..6551.67 rows=1975 width=4) (actual time=21.178..21.178 rows=1987 loops=1)
+               Buckets: 2048  Batches: 1  Memory Usage: 86kB
+               Buffers: shared read=1951
+               ->  Bitmap Heap Scan on part  (cost=68.67..6551.67 rows=1975 width=4) (actual time=1.103..20.365 rows=1987 loops=1)
+                     Recheck Cond: ((p_container = 'JUMBO PACK'::bpchar) AND (p_brand = 'Brand#33'::bpchar))
+                     Heap Blocks: exact=1936
+                     Buffers: shared read=1951
+                     ->  Bitmap Index Scan on part_p_container_p_brand_p_partkey_idx  (cost=0.00..68.18 rows=1975 width=0) (actual time=0.777..0.777 rows=1987 loops=1)
+                           Index Cond: ((p_container = 'JUMBO PACK'::bpchar) AND (p_brand = 'Brand#33'::bpchar))
+                           Buffers: shared read=15
+         SubPlan 1
+           ->  Aggregate  (cost=129.19..129.20 rows=1 width=4) (actual time=0.068..0.068 rows=1 loops=59982)
+                 Buffers: shared hit=2111590 read=5337
+                 ->  Index Only Scan using lineitem_l_partkey_l_quantity_l_shipmode_idx on lineitem lineitem_1  (cost=0.56..129.11 rows=31 width=4) (actual time=0.010..0.063 rows=31 loops=59982)
+                       Index Cond: (l_partkey = part.p_partkey)
+                       Heap Fetches: 1867462
+                       Buffers: shared hit=2111590 read=5337
+ Planning time: 4.064 ms
+ Execution time: 21348.795 ms
+(28 rows)
+
+COMMIT;
+COMMIT

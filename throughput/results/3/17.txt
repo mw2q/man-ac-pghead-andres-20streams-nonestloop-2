@@ -1,0 +1,54 @@
+BEGIN;
+BEGIN
+EXPLAIN (ANALYZE, BUFFERS)
+select
+	sum(l_extendedprice) / 7.0 as avg_yearly
+from
+	lineitem,
+	part
+where
+	p_partkey = l_partkey
+	and p_brand = 'Brand#44'
+	and p_container = 'WRAP PACK'
+	and l_quantity < (
+		select
+			0.2 * avg(l_quantity)
+		from
+			lineitem
+		where
+			l_partkey = p_partkey
+	);
+                                                                                            QUERY PLAN                                                                                             
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=9542182.51..9542182.52 rows=1 width=4) (actual time=22339.701..22339.701 rows=1 loops=1)
+   Buffers: shared hit=2856220 read=295198 dirtied=83 written=59
+   ->  Hash Join  (cost=6539.67..9542133.25 rows=19704 width=4) (actual time=23.050..22337.108 rows=5336 loops=1)
+         Hash Cond: (lineitem.l_partkey = part.p_partkey)
+         Join Filter: (lineitem.l_quantity < (SubPlan 1))
+         Rows Removed by Join Filter: 53503
+         Buffers: shared hit=2856220 read=295198 dirtied=83 written=59
+         ->  Seq Scan on lineitem  (cost=0.00..1671919.59 rows=60225359 width=12) (actual time=0.011..10097.492 rows=60045303 loops=1)
+               Buffers: shared hit=797863 read=271803
+         ->  Hash  (cost=6515.13..6515.13 rows=1963 width=4) (actual time=22.060..22.060 rows=1953 loops=1)
+               Buckets: 2048  Batches: 1  Memory Usage: 85kB
+               Buffers: shared hit=35 read=1889 written=13
+               ->  Bitmap Heap Scan on part  (cost=68.55..6515.13 rows=1963 width=4) (actual time=1.148..21.374 rows=1953 loops=1)
+                     Recheck Cond: ((p_container = 'WRAP PACK'::bpchar) AND (p_brand = 'Brand#44'::bpchar))
+                     Heap Blocks: exact=1910
+                     Buffers: shared hit=35 read=1889 written=13
+                     ->  Bitmap Index Scan on part_p_container_p_brand_p_partkey_idx  (cost=0.00..68.06 rows=1963 width=0) (actual time=0.845..0.845 rows=1953 loops=1)
+                           Index Cond: ((p_container = 'WRAP PACK'::bpchar) AND (p_brand = 'Brand#44'::bpchar))
+                           Buffers: shared hit=1 read=13 written=1
+         SubPlan 1
+           ->  Aggregate  (cost=129.19..129.20 rows=1 width=4) (actual time=0.068..0.068 rows=1 loops=58839)
+                 Buffers: shared hit=2058319 read=21506 dirtied=83 written=46
+                 ->  Index Only Scan using lineitem_l_partkey_l_quantity_l_shipmode_idx on lineitem lineitem_1  (cost=0.56..129.11 rows=31 width=4) (actual time=0.012..0.061 rows=31 loops=58839)
+                       Index Cond: (l_partkey = part.p_partkey)
+                       Heap Fetches: 1834935
+                       Buffers: shared hit=2058319 read=21506 dirtied=83 written=46
+ Planning time: 2.103 ms
+ Execution time: 22339.871 ms
+(28 rows)
+
+COMMIT;
+COMMIT

@@ -1,0 +1,95 @@
+BEGIN;
+BEGIN
+EXPLAIN
+select
+	s_acctbal,
+	s_name,
+	n_name,
+	p_partkey,
+	p_mfgr,
+	s_address,
+	s_phone,
+	s_comment
+from
+	part,
+	supplier,
+	partsupp,
+	nation,
+	region
+where
+	p_partkey = ps_partkey
+	and s_suppkey = ps_suppkey
+	and p_size = 1
+	and p_type like '%TIN'
+	and s_nationkey = n_nationkey
+	and n_regionkey = r_regionkey
+	and r_name = 'EUROPE'
+	and ps_supplycost = (
+		select
+			min(ps_supplycost)
+		from
+			partsupp,
+			supplier,
+			nation,
+			region
+		where
+			p_partkey = ps_partkey
+			and s_suppkey = ps_suppkey
+			and s_nationkey = n_nationkey
+			and n_regionkey = r_regionkey
+			and r_name = 'EUROPE'
+	)
+order by
+	s_acctbal desc,
+	n_name,
+	s_name,
+	p_partkey
+LIMIT 100;
+                                                          QUERY PLAN                                                          
+------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=25388306.88..25388306.89 rows=1 width=190)
+   ->  Sort  (cost=25388306.88..25388306.89 rows=1 width=190)
+         Sort Key: supplier.s_acctbal, nation.n_name, supplier.s_name, part.p_partkey
+         ->  Merge Join  (cost=465801.75..25388306.87 rows=1 width=190)
+               Merge Cond: (part.p_partkey = partsupp.ps_partkey)
+               Join Filter: (partsupp.ps_supplycost = (SubPlan 1))
+               ->  Index Scan using pk_part on part  (cost=0.43..102473.43 rows=8017 width=30)
+                     Filter: (((p_type)::text ~~ '%TIN'::text) AND (p_size = 1))
+               ->  Sort  (cost=465801.25..469800.41 rows=1599664 width=168)
+                     Sort Key: partsupp.ps_partkey
+                     ->  Hash Join  (cost=4006.53..300961.17 rows=1599664 width=168)
+                           Hash Cond: (partsupp.ps_suppkey = supplier.s_suppkey)
+                           ->  Seq Scan on partsupp  (cost=0.00..250958.00 rows=8000000 width=12)
+                           ->  Hash  (cost=3756.53..3756.53 rows=20000 width=164)
+                                 ->  Hash Join  (cost=2.53..3756.53 rows=20000 width=164)
+                                       Hash Cond: (supplier.s_nationkey = nation.n_nationkey)
+                                       ->  Seq Scan on supplier  (cost=0.00..3179.00 rows=100000 width=142)
+                                       ->  Hash  (cost=2.47..2.47 rows=5 width=30)
+                                             ->  Hash Join  (cost=1.07..2.47 rows=5 width=30)
+                                                   Hash Cond: (nation.n_regionkey = region.r_regionkey)
+                                                   ->  Seq Scan on nation  (cost=0.00..1.25 rows=25 width=34)
+                                                   ->  Hash  (cost=1.06..1.06 rows=1 width=4)
+                                                         ->  Seq Scan on region  (cost=0.00..1.06 rows=1 width=4)
+                                                               Filter: (r_name = 'EUROPE'::bpchar)
+               SubPlan 1
+                 ->  Aggregate  (cost=3920.35..3920.36 rows=1 width=4)
+                       ->  Hash Join  (cost=16.33..3920.34 rows=1 width=4)
+                             Hash Cond: (supplier_1.s_suppkey = partsupp_1.ps_suppkey)
+                             ->  Hash Join  (cost=2.53..3756.53 rows=20000 width=4)
+                                   Hash Cond: (supplier_1.s_nationkey = nation_1.n_nationkey)
+                                   ->  Seq Scan on supplier supplier_1  (cost=0.00..3179.00 rows=100000 width=8)
+                                   ->  Hash  (cost=2.47..2.47 rows=5 width=4)
+                                         ->  Hash Join  (cost=1.07..2.47 rows=5 width=4)
+                                               Hash Cond: (nation_1.n_regionkey = region_1.r_regionkey)
+                                               ->  Seq Scan on nation nation_1  (cost=0.00..1.25 rows=25 width=8)
+                                               ->  Hash  (cost=1.06..1.06 rows=1 width=4)
+                                                     ->  Seq Scan on region region_1  (cost=0.00..1.06 rows=1 width=4)
+                                                           Filter: (r_name = 'EUROPE'::bpchar)
+                             ->  Hash  (cost=13.75..13.75 rows=4 width=8)
+                                   ->  Index Scan using pk_partsupp on partsupp partsupp_1  (cost=0.43..13.75 rows=4 width=8)
+                                         Index Cond: (part.p_partkey = ps_partkey)
+ Planning time: 6.098 ms
+(42 rows)
+
+COMMIT;
+COMMIT

@@ -1,0 +1,80 @@
+BEGIN;
+BEGIN
+EXPLAIN
+select
+	s_name,
+	count(*) as numwait
+from
+	supplier,
+	lineitem l1,
+	orders,
+	nation
+where
+	s_suppkey = l1.l_suppkey
+	and o_orderkey = l1.l_orderkey
+	and o_orderstatus = 'F'
+	and l1.l_receiptdate > l1.l_commitdate
+	and exists (
+		select
+			*
+		from
+			lineitem l2
+		where
+			l2.l_orderkey = l1.l_orderkey
+			and l2.l_suppkey <> l1.l_suppkey
+	)
+	and not exists (
+		select
+			*
+		from
+			lineitem l3
+		where
+			l3.l_orderkey = l1.l_orderkey
+			and l3.l_suppkey <> l1.l_suppkey
+			and l3.l_receiptdate > l3.l_commitdate
+	)
+	and s_nationkey = n_nationkey
+	and n_name = 'ETHIOPIA'
+group by
+	s_name
+order by
+	numwait desc,
+	s_name
+LIMIT 100;
+                                                                         QUERY PLAN                                                                          
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=5397241.03..5397241.03 rows=1 width=26)
+   ->  Sort  (cost=5397241.03..5397241.03 rows=1 width=26)
+         Sort Key: (count(*)), supplier.s_name
+         ->  HashAggregate  (cost=5397241.01..5397241.02 rows=1 width=26)
+               Group Key: supplier.s_name
+               ->  Merge Semi Join  (cost=1593897.65..5397241.00 rows=1 width=26)
+                     Merge Cond: (orders.o_orderkey = l2.l_orderkey)
+                     Join Filter: (l2.l_suppkey <> l1.l_suppkey)
+                     ->  Merge Anti Join  (cost=1593885.16..2600380.63 rows=390198 width=38)
+                           Merge Cond: (l1.l_orderkey = l3.l_orderkey)
+                           Join Filter: (l3.l_suppkey <> l1.l_suppkey)
+                           ->  Sort  (cost=1593884.59..1594860.09 rows=390198 width=38)
+                                 Sort Key: l1.l_orderkey
+                                 ->  Hash Join  (cost=536329.60..1557647.20 rows=390198 width=38)
+                                       Hash Cond: (l1.l_orderkey = orders.o_orderkey)
+                                       ->  Hash Join  (cost=3645.89..1012054.66 rows=800609 width=34)
+                                             Hash Cond: (l1.l_suppkey = supplier.s_suppkey)
+                                             ->  Index Scan using lineitem_l_orderkey_idx_part1 on lineitem l1  (cost=0.56..925346.12 rows=20015232 width=8)
+                                             ->  Hash  (cost=3595.32..3595.32 rows=4000 width=30)
+                                                   ->  Hash Join  (cost=1.32..3595.32 rows=4000 width=30)
+                                                         Hash Cond: (supplier.s_nationkey = nation.n_nationkey)
+                                                         ->  Seq Scan on supplier  (cost=0.00..3179.00 rows=100000 width=34)
+                                                         ->  Hash  (cost=1.31..1.31 rows=1 width=4)
+                                                               ->  Seq Scan on nation  (cost=0.00..1.31 rows=1 width=4)
+                                                                     Filter: (n_name = 'ETHIOPIA'::bpchar)
+                                       ->  Hash  (cost=441209.30..441209.30 rows=7317953 width=4)
+                                             ->  Seq Scan on orders  (cost=0.00..441209.30 rows=7317953 width=4)
+                                                   Filter: (o_orderstatus = 'F'::bpchar)
+                           ->  Index Scan using lineitem_l_orderkey_idx_part1 on lineitem l3  (cost=0.56..925346.12 rows=20015232 width=8)
+                     ->  Index Scan using lineitem_l_orderkey_idx on lineitem l2  (cost=0.56..2626280.02 rows=60045697 width=8)
+ Planning time: 10.251 ms
+(31 rows)
+
+COMMIT;
+COMMIT

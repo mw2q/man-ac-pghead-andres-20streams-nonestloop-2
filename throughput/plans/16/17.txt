@@ -1,0 +1,41 @@
+BEGIN;
+BEGIN
+EXPLAIN
+select
+	sum(l_extendedprice) / 7.0 as avg_yearly
+from
+	lineitem,
+	part
+where
+	p_partkey = l_partkey
+	and p_brand = 'Brand#43'
+	and p_container = 'JUMBO DRUM'
+	and l_quantity < (
+		select
+			0.2 * avg(l_quantity)
+		from
+			lineitem
+		where
+			l_partkey = p_partkey
+	);
+                                                                     QUERY PLAN                                                                     
+----------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=9571972.21..9571972.22 rows=1 width=4)
+   ->  Hash Join  (cost=6586.51..9571922.72 rows=19795 width=4)
+         Hash Cond: (lineitem.l_partkey = part.p_partkey)
+         Join Filter: (lineitem.l_quantity < (SubPlan 1))
+         ->  Seq Scan on lineitem  (cost=0.00..1666931.97 rows=60045697 width=12)
+         ->  Hash  (cost=6561.78..6561.78 rows=1978 width=4)
+               ->  Bitmap Heap Scan on part  (cost=72.70..6561.78 rows=1978 width=4)
+                     Recheck Cond: ((p_container = 'JUMBO DRUM'::bpchar) AND (p_brand = 'Brand#43'::bpchar))
+                     ->  Bitmap Index Scan on part_p_container_p_brand_p_partkey_idx  (cost=0.00..72.21 rows=1978 width=0)
+                           Index Cond: ((p_container = 'JUMBO DRUM'::bpchar) AND (p_brand = 'Brand#43'::bpchar))
+         SubPlan 1
+           ->  Aggregate  (cost=129.19..129.20 rows=1 width=4)
+                 ->  Index Only Scan using lineitem_l_partkey_l_quantity_l_shipmode_idx on lineitem lineitem_1  (cost=0.56..129.11 rows=31 width=4)
+                       Index Cond: (l_partkey = part.p_partkey)
+ Planning time: 2.087 ms
+(15 rows)
+
+COMMIT;
+COMMIT

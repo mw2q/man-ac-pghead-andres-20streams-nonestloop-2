@@ -1,0 +1,43 @@
+BEGIN;
+BEGIN
+EXPLAIN (ANALYZE, BUFFERS)
+select
+	l_returnflag,
+	l_linestatus,
+	sum(l_quantity) as sum_qty,
+	sum(l_extendedprice) as sum_base_price,
+	sum(l_extendedprice * (1 - l_discount)) as sum_disc_price,
+	sum(l_extendedprice * (1 - l_discount) * (1 + l_tax)) as sum_charge,
+	avg(l_quantity) as avg_qty,
+	avg(l_extendedprice) as avg_price,
+	avg(l_discount) as avg_disc,
+	count(*) as count_order
+from
+	lineitem
+where
+	l_shipdate <= date '1998-12-01' - interval '69 days'
+group by
+	l_returnflag,
+	l_linestatus
+order by
+	l_returnflag,
+	l_linestatus;
+                                                              QUERY PLAN                                                               
+---------------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=4215679.13..4215679.14 rows=6 width=20) (actual time=83935.433..83935.434 rows=4 loops=1)
+   Sort Key: l_returnflag, l_linestatus
+   Sort Method: quicksort  Memory: 25kB
+   Buffers: shared hit=876323 read=194422 written=14
+   ->  HashAggregate  (cost=4215678.94..4215679.05 rows=6 width=20) (actual time=83935.365..83935.367 rows=4 loops=1)
+         Group Key: l_returnflag, l_linestatus
+         Buffers: shared hit=876318 read=194422 written=14
+         ->  Seq Scan on lineitem  (cost=0.00..1824312.86 rows=59784152 width=20) (actual time=0.018..17793.621 rows=59547786 loops=1)
+               Filter: (l_shipdate <= '1998-09-23 00:00:00'::timestamp without time zone)
+               Rows Removed by Filter: 498435
+               Buffers: shared hit=876318 read=194422 written=14
+ Planning time: 1.463 ms
+ Execution time: 83935.592 ms
+(13 rows)
+
+COMMIT;
+COMMIT

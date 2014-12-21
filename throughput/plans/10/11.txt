@@ -1,0 +1,64 @@
+BEGIN;
+BEGIN
+EXPLAIN
+select
+	ps_partkey,
+	sum(ps_supplycost * ps_availqty) as value
+from
+	partsupp,
+	supplier,
+	nation
+where
+	ps_suppkey = s_suppkey
+	and s_nationkey = n_nationkey
+	and n_name = 'JORDAN'
+group by
+	ps_partkey having
+		sum(ps_supplycost * ps_availqty) > (
+			select
+				sum(ps_supplycost * ps_availqty) * 0.0000100000
+			from
+				partsupp,
+				supplier,
+				nation
+			where
+				ps_suppkey = s_suppkey
+				and s_nationkey = n_nationkey
+				and n_name = 'JORDAN'
+		)
+order by
+	value desc;
+                                                QUERY PLAN                                                 
+-----------------------------------------------------------------------------------------------------------
+ Sort  (cost=616856.54..617656.37 rows=319933 width=12)
+   Sort Key: (sum((partsupp.ps_supplycost * (partsupp.ps_availqty)::double precision)))
+   InitPlan 1 (returns $0)
+     ->  Aggregate  (cost=290202.15..290202.17 rows=1 width=8)
+           ->  Hash Join  (cost=3645.32..287802.66 rows=319933 width=8)
+                 Hash Cond: (partsupp_1.ps_suppkey = supplier_1.s_suppkey)
+                 ->  Seq Scan on partsupp partsupp_1  (cost=0.00..250958.00 rows=8000000 width=12)
+                 ->  Hash  (cost=3595.32..3595.32 rows=4000 width=4)
+                       ->  Hash Join  (cost=1.32..3595.32 rows=4000 width=4)
+                             Hash Cond: (supplier_1.s_nationkey = nation_1.n_nationkey)
+                             ->  Seq Scan on supplier supplier_1  (cost=0.00..3179.00 rows=100000 width=8)
+                             ->  Hash  (cost=1.31..1.31 rows=1 width=4)
+                                   ->  Seq Scan on nation nation_1  (cost=0.00..1.31 rows=1 width=4)
+                                         Filter: (n_name = 'JORDAN'::bpchar)
+   ->  HashAggregate  (cost=293401.48..297400.65 rows=319933 width=12)
+         Group Key: partsupp.ps_partkey
+         Filter: (sum((partsupp.ps_supplycost * (partsupp.ps_availqty)::double precision)) > $0)
+         ->  Hash Join  (cost=3645.32..287802.66 rows=319933 width=12)
+               Hash Cond: (partsupp.ps_suppkey = supplier.s_suppkey)
+               ->  Seq Scan on partsupp  (cost=0.00..250958.00 rows=8000000 width=16)
+               ->  Hash  (cost=3595.32..3595.32 rows=4000 width=4)
+                     ->  Hash Join  (cost=1.32..3595.32 rows=4000 width=4)
+                           Hash Cond: (supplier.s_nationkey = nation.n_nationkey)
+                           ->  Seq Scan on supplier  (cost=0.00..3179.00 rows=100000 width=8)
+                           ->  Hash  (cost=1.31..1.31 rows=1 width=4)
+                                 ->  Seq Scan on nation  (cost=0.00..1.31 rows=1 width=4)
+                                       Filter: (n_name = 'JORDAN'::bpchar)
+ Planning time: 2.168 ms
+(28 rows)
+
+COMMIT;
+COMMIT
